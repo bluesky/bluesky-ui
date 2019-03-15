@@ -1,0 +1,7 @@
+# List required packages in this file, one per line.
+bluesky
+mily
+aiohttp
+jinja2
+aiohttp_jinja2
+ophyd
