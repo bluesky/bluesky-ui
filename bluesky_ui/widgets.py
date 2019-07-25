@@ -5,7 +5,7 @@ from event_model import DocumentNames
 
 from pyqtgraph.parametertree import ParameterTree
 
-from mily.widgets import (label_layout, vstacked_label,
+from mily.widgets import (vstacked_label,
                           hstacked_label, MISpin, MFSpin,
                           MetaDataEntry)
 
@@ -216,9 +216,21 @@ class Count(QtWidgets.QWidget):
         # float spinner
         self.delay_spin = MFSpin('delay')
         self.delay_spin.setRange(0, 60*60)  # maximum delay an hour
-        self.delay_spin.setDecimals(1)                 # only 0.1s precision from GUI
+        self.delay_spin.setDecimals(1)  # only 0.1s precision from GUI
         self.delay_spin.setSuffix('s')
-        hlayout.addLayout(label_layout('delay', False, self.delay_spin))
+        label_layout = QtWidgets.QHBoxLayout()
+        inner_layout = QtWidgets.QHBoxLayout()
+        cb = QtWidgets.QCheckBox()
+        label_layout.addWidget(QtWidgets.QCheckBox())
+        inner_layout.addWidget(QtWidgets.QLabel('delay'))
+        inner_layout.addWidget(self.delay_spin)
+        label_layout.addLayout(inner_layout)
+        label_layout.addStretch()
+        cb.setCheckable(True)
+        cb.stateChanged.connect(self.delay_spin.setEnabled)
+        cb.setChecked(False)
+        self.delay_spin.setEnabled(False)
+        hlayout.addLayout(label_layout)
         hlayout.addStretch()
         vlayout.addLayout(hlayout)
         # set up the detector selector
