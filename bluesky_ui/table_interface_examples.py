@@ -1,7 +1,7 @@
 from bluesky.plans import scan
 from bluesky.simulators import summarize_plan
 from mily.widgets import MText, MComboBox, MISpin, MFSpin
-from mily.table_interface import MTableInterfaceWidgetWithExport
+from mily.table_interface import MFunctionTableInterfaceWidget
 from ophyd.sim import hw
 
 hw = hw()
@@ -35,7 +35,7 @@ def simple_REfunction(label='label', det=hw.det, motor=hw.motor, start=0,
     summarize_plan(plan)
 
 
-class SimpleREfunctionWidget(MTableInterfaceWidgetWithExport):
+class SimpleREfunctionWidget(MFunctionTableInterfaceWidget):
     '''A ``MTableInterfaceWidgetWithExport`` for use with simple_REfunction.
 
     Add custom ``detectors``, ``motors``, ``editor_map`` and ``default_rows``
