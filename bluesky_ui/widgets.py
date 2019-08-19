@@ -104,12 +104,12 @@ class BsMvTableEditor(MTableInterfaceWidget):
     '''Table editor for plan_args following the ``mv`` plan_stub API.'''
     def __init__(self, *args, motors=[], **kwargs):
         self.motors = motors
-        self.editor_map = {'motor': partial(table_mcombobox_factory,
-                                            option_list=self.motors,
-                                            table=self,
-                                            key='motor'),
-                           'value': MFSpin}
-        super().__init__(*args, **kwargs)
+        table_editor_map = {'motor': partial(table_mcombobox_factory,
+                                             option_list=self.motors,
+                                             table=self,
+                                             key='motor'),
+                            'value': MFSpin}
+        super().__init__(*args, table_editor_map=table_editor_map, **kwargs)
 
 
 class BsScanTableEditor(MTableInterfaceWidget):
@@ -117,17 +117,19 @@ class BsScanTableEditor(MTableInterfaceWidget):
     def __init__(self, *args, detectors=[], motors=[], **kwargs):
         self.detectors = detectors
         self.motors = motors
-        self.prefix_editor_map = {'dets': partial(table_mselector_factory,
-                                                  option_list=self.detectors,
-                                                  vertical=False)}
-        self.editor_map = {'motor': partial(table_mcombobox_factory,
-                                            option_list=self.motors,
-                                            table=self,
-                                            key='motor'),
-                           'start': MFSpin,
-                           'stop': MFSpin}
-        self.suffix_editor_map = {'num': MISpin}
-        super().__init__(*args, **kwargs)
+        prefix_editor_map = {'dets': partial(table_mselector_factory,
+                                             option_list=self.detectors,
+                                             vertical=False)}
+        table_editor_map = {'motor': partial(table_mcombobox_factory,
+                                             option_list=self.motors,
+                                             table=self,
+                                             key='motor'),
+                            'start': MFSpin,
+                            'stop': MFSpin}
+        suffix_editor_map = {'num': MISpin}
+        super().__init__(*args, prefix_editor_map=prefix_editor_map,
+                         table_editor_map=table_editor_map,
+                         suffix_editor_map=suffix_editor_map, **kwargs)
 
 
 class BsGridTableEditor(MTableInterfaceWidget):
@@ -135,19 +137,20 @@ class BsGridTableEditor(MTableInterfaceWidget):
     def __init__(self, *args, detectors=[], motors=[], **kwargs):
         self.detectors = detectors
         self.motors = motors
-        self.prefix_editor_map = {'dets': partial(table_mselector_factory,
-                                                  option_list=self.detectors,
-                                                  vertical=False)}
-        self.editor_map = {'motor': partial(table_mcombobox_factory,
-                                            option_list=self.motors,
-                                            table=self,
-                                            key='motor'),
-                           'start': MFSpin,
-                           'stop': MFSpin,
-                           'num': MISpin,
-                           'snake': partial(bs_snake_editor_factory,
-                                            table=self)}
-        super().__init__(*args, **kwargs)
+        prefix_editor_map = {'dets': partial(table_mselector_factory,
+                                             option_list=self.detectors,
+                                             vertical=False)}
+        table_editor_map = {'motor': partial(table_mcombobox_factory,
+                                       option_list=self.motors,
+                                       table=self,
+                                       key='motor'),
+                      'start': MFSpin,
+                      'stop': MFSpin,
+                      'num': MISpin,
+                      'snake': partial(bs_snake_editor_factory,
+                                       table=self)}
+        super().__init__(*args, prefix_editor_map=prefix_editor_map,
+                         table_editor_map=table_editor_map, **kwargs)
 
 
 class MoverRanger(QtWidgets.QWidget):

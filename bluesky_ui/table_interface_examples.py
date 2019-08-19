@@ -55,27 +55,31 @@ class SimpleREfunctionWidget(MFunctionTableInterfaceWidget):
 
     '''
 
-    # NOTE I have made these 'class' variables as I am considering
-    # that we may want to make them traitlets for user config reasons.
-    detectors = [hw.det, hw.det1, hw.det2]
-    motors = [hw.motor, hw.motor1, hw.motor2]
-    default_rows = [
-        {'label': 'plan_1', 'det': hw.det, 'motor': hw.motor, 'start': 0,
-         'stop': 2, 'num_steps': 3},
-        {'label': 'plan_2', 'det': hw.det1, 'motor': hw.motor1, 'start': -3,
-         'stop': 3, 'num_steps': 7},
-        {'label': 'plan_3', 'det': hw.det2, 'motor': hw.motor2, 'start': -4,
-         'stop': 4, 'num_steps': 9}]
-
     def __init__(self, name, *args, **kwargs):
+        self.detectors = [hw.det, hw.det1, hw.det2]
+        self.motors = [hw.motor, hw.motor1, hw.motor2]
+
         _det_dict = {det.name: det for det in self.detectors}
         _motor_dict = {motor.name: motor for motor in self.motors}
-        self.editor_map = {'label': MText,
-                           'det': partialclass(MComboBox,
-                                               {'items': _det_dict}),
-                           'motor': partialclass(MComboBox,
-                                                 {'items': _motor_dict}),
-                           'start': MFSpin,
-                           'stop': MFSpin,
-                           'num_steps': MISpin}
-        super().__init__(simple_REfunction, name, *args, **kwargs)
+
+        default_parameters = [
+            {'label': 'plan_1', 'det': hw.det, 'motor': hw.motor, 'start': 0,
+             'stop': 2, 'num_steps': 3},
+            {'label': 'plan_2', 'det': hw.det1, 'motor': hw.motor1, 'start': 3,
+             'stop': 7, 'num_steps': 7},
+            {'label': 'plan_3', 'det': hw.det2, 'motor': hw.motor2, 'start': 4,
+             'stop': 10, 'num_steps': 9}]
+
+        table_editor_map = {'label': MText,
+                            'det': partialclass(MComboBox,
+                                                {'items': _det_dict}),
+                            'motor': partialclass(MComboBox,
+                                                  {'items': _motor_dict}),
+                            'start': MFSpin,
+                            'stop': MFSpin,
+                            'num_steps': MISpin}
+
+        super().__init__(simple_REfunction, name, *args,
+                         table_editor_map=table_editor_map,
+                         default_parameters=[{}, *default_parameters, {}],
+                         **kwargs)
