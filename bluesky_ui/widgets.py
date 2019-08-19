@@ -2,12 +2,13 @@ from qtpy import QtWidgets
 from bluesky.run_engine import Dispatcher
 from bluesky.callbacks.best_effort import BestEffortCallback
 from event_model import DocumentNames
-
+from functools import partial
 from pyqtgraph.parametertree import ParameterTree
 
-from mily.widgets import (vstacked_label,
-                          hstacked_label, MISpin, MFSpin,
-                          MetaDataEntry)
+from mily.widgets import (vstacked_label, hstacked_label, MISpin, MFSpin,
+                          MComboBox, MCheckBox, MSelector, MetaDataEntry)
+
+from mily.table_interface import MTableInterfaceWidget
 
 
 def merge_parameters(widget_iter):
@@ -15,6 +16,138 @@ def merge_parameters(widget_iter):
             for w in widget_iter
             for k, v in w.get_parameters().items()
             if w.isEnabled()}
+
+
+def table_mselector_factory(name, parent, option_list, vertical):
+    '''An 'Editor Factory' for an ``MSelector`` in a table interface.
+
+    This simply adds the capability to use ``functools.partial`` to pass in
+    a 'detectors' list at definition time that will be used at instantiation
+    time.
+    '''
+
+    return MSelector(name, parent=parent, option_list=option_list,
+                     vertical=vertical)
+
+
+def table_mcombobox_factory(name, parent, option_list, table, key):
+    '''An 'Editor factory' for an ``MComboBox``for use with a table interface.
+
+    This is designed to be used in place of an ``MComboBox`` 'editor' in an
+    ``MTableInterfaceWidget``'s ``editor_map``. It will ensure that any 'item'
+    selected in an existing row is removed from the list of 'items' to be
+    selected, thereby guaranteeing uniqueness. It finds any existing selected
+    objects by calling ``table.get_parameters() and searching for any times in
+    the returned list if dicts who's key is 'key'. The recommended usage in the
+    ``editor_map`` attribute dictionary defined in the table is to wrap this in
+    a ``functools.partial`` call, as seen below.
+
+    ..code-block:: python
+
+    functools.partial(table_mcombobox_factory,
+                      option_list = some_list',
+                      table = self,
+                      key = 'some_key')
+
+    parameters
+    ----------
+    name : str
+        The name parameter to pass into the editor to be instantiated.
+    parent : object
+        The parent object to pass into the editor to be instantiated.
+    option_list : The list of items to potentially include in the dropdown list
+    table : object
+        The 'table' object that calls this editor factory.
+    key : str
+        The 'key' value that should be used to extract out any previously
+        selected items from the parameters returned by ``table`` and remove
+        them from the option list.
+    '''
+    # determine which motors to include as drop-down list options
+    selected_items = [item.get(key)
+                      for item in table.get_parameters()[table._name]
+                      if item.get(key)]
+    items = {getattr(item, 'name', str(item)): item
+             for item in option_list
+             if item not in selected_items}
+    return MComboBox(name, parent=parent, items=items)
+
+
+def bs_snake_editor_factory(name, parent, table):
+    '''A function that returns an editor widget for the 'snake' parameter
+
+    This returns a single editor, the exact editor being ``None`` if
+    if the current selected row == 0 or a checkbox if it is not.
+
+    Parameters
+    ----------
+    name: str
+        The name to be given to the widget.
+    parent: Qt.QWidget
+    table : object
+        The 'table' object that called this editor factory.
+    '''
+    index = table.tableView.selectionModel().selectedIndexes()[0]
+
+    if index.row() == 0:
+        editor = None
+    else:
+        editor = MCheckBox
+
+    if editor is not None:
+        editor = editor(name, parent=parent)
+
+    return editor
+
+
+class BsMvTableEditor(MTableInterfaceWidget):
+    '''Table editor for plan_args following the ``mv`` plan_stub API.'''
+    def __init__(self, *args, motors=[], **kwargs):
+        self.motors = motors
+        self.editor_map = {'motor': partial(table_mcombobox_factory,
+                                            option_list=self.motors,
+                                            table=self,
+                                            key='motor'),
+                           'value': MFSpin}
+        super().__init__(*args, **kwargs)
+
+
+class BsScanTableEditor(MTableInterfaceWidget):
+    '''Table Editor for plan_args following the ``scan`` plan API``.'''
+    def __init__(self, *args, detectors=[], motors=[], **kwargs):
+        self.detectors = detectors
+        self.motors = motors
+        self.prefix_editor_map = {'dets': partial(table_mselector_factory,
+                                                  option_list=self.detectors,
+                                                  vertical=False)}
+        self.editor_map = {'motor': partial(table_mcombobox_factory,
+                                            option_list=self.motors,
+                                            table=self,
+                                            key='motor'),
+                           'start': MFSpin,
+                           'stop': MFSpin}
+        self.suffix_editor_map = {'num': MISpin}
+        super().__init__(*args, **kwargs)
+
+
+class BsGridTableEditor(MTableInterfaceWidget):
+    '''Table Editor for plan_args following the ``grid_scan`` plan API.'''
+    def __init__(self, *args, detectors=[], motors=[], **kwargs):
+        self.detectors = detectors
+        self.motors = motors
+        self.prefix_editor_map = {'dets': partial(table_mselector_factory,
+                                                  option_list=self.detectors,
+                                                  vertical=False)}
+        self.editor_map = {'motor': partial(table_mcombobox_factory,
+                                            option_list=self.motors,
+                                            table=self,
+                                            key='motor'),
+                           'start': MFSpin,
+                           'stop': MFSpin,
+                           'num': MISpin,
+                           'snake': partial(bs_snake_editor_factory,
+                                            table=self)}
+        super().__init__(*args, **kwargs)
 
 
 class MoverRanger(QtWidgets.QWidget):
