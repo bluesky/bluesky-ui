@@ -18,6 +18,17 @@ def merge_parameters(widget_iter):
             if w.isEnabled()}
 
 
+def table_mispin_factory(name, parent, minimum=None, maximum=None):
+    '''An 'Editor Factory' for an ``MISpin`` in a table interface.
+
+    This simply adds the capability to use ``functools.partial`` to pass in
+    minimum and/or maximum values at definition time that will be used at
+    instantiation time.
+    '''
+
+    return MISpin(name, parent=parent, minimum=minimum, maximum=maximum)
+
+
 def table_mselector_factory(name, parent, option_list, vertical):
     '''An 'Editor Factory' for an ``MSelector`` in a table interface.
 
@@ -84,8 +95,9 @@ def bs_snake_editor_factory(name, parent, table):
     name: str
         The name to be given to the widget.
     parent: Qt.QWidget
+        The parent object of the editor
     table : object
-        The 'table' object that called this editor factory.
+        The 'table' object that defines this editor factory.
     '''
     index = table.tableView.selectionModel().selectedIndexes()[0]
 
@@ -99,6 +111,91 @@ def bs_snake_editor_factory(name, parent, table):
 
     return editor
 
+def bs_motor_position_mfspin_factory(name, parent, table):
+    '''Used to open an MFSpin editor with limits based on the 'motor' column
+
+    This returns an instantiated MFSpin editor, with the limits set by the
+    motor selected in the 'motor' column (if they are set at the IOC level)
+
+    Parameters
+    ----------
+    name: str
+        The name to be given to the widget.
+    parent: Qt.QWidget
+        The parent object of the editor
+    table : object
+        The 'table' object that defines this editor factory.
+    '''
+    index = table.tableView.selectionModel().selectedIndexes()[0]
+
+    motor = table.get_row_parameters(index.row())[table._name].get('motor',
+                                                                   None)
+    # extract the motors limits, or use the EPICS not set value of (0,0)
+    limits = getattr(motor, 'limits', (0, 0))
+
+    if limits !=(0,0):
+        return MFSpin(name, parent=parent, minimum=limits[0],
+                      maximum=limits[1])
+    else:
+        return MFSpin(name, parent=parent)
+
+
+class BsCountTableEditor(MTableInterfaceWidget):
+    '''Table editor for plan_args following the ``count`` plan API.'''
+    def __init__(self, *args, detectors=[], **kwargs):
+        self.detectors = detectors
+        prefix_editor_map = {'dets': partial(table_mselector_factory,
+                                             option_list=self.detectors,
+                                             vertical=False),
+                             'num': partial(table_mispin_factory,
+                                            minimum=0)}
+        super().__init__(*args, prefix_editor_map=prefix_editor_map, **kwargs)
+
+
+def bs_motor_update_coupled_parameters(requested_parameters,
+                                       current_parameters,
+                                       row):
+    '''An 'update_coupled_parameters' function for use with motors.
+
+    This ensures that, if a 'motor' column that selects a motor is updated,
+    any corresponding 'start', 'stop' or 'value' column values are checked
+    against the new motors limits, and set to 'None' if not.
+
+    For a description of how these functions work see the doc string for
+    ``mily.table_interface.MTableInterfaceWidget``.
+
+    Parameters:
+    requested_parameters : dict
+        A dictionary mapping column headings to new values to be updated.
+    current_parameters : dict
+        A dictionary mapping column headings to current values.
+    row : int
+        The row that is to be updated.
+    '''
+
+    # create an output dictionary by merging the input dicts.
+    new_parameters = {**current_parameters, **requested_parameters}
+
+    # reset any 'positions' columns to None if current value is outside limits
+    if 'motor' in requested_parameters.keys():
+        motor = requested_parameters['motor']
+        limits = getattr(motor, 'limits', (0, 0))
+        if limits !=(0,0):
+            for column_name in [name for name in ['start', 'stop', 'value']
+                                if name in current_parameters.keys()]:
+                if (current_parameters[column_name] < limits[0] or
+                    current_parameters[column_name] > limits[1]):
+                    new_parameters[column_name] = None
+
+    if 'snake' in new_parameters.keys():  # update snake columns if they exist
+        # if row is zero ensure that the 'snake' value is set to 'None'
+        if row == 0:
+            new_parameters['snake'] = None
+        elif not new_parameters['snake']:
+            new_parameters['snake'] = False
+
+    return new_parameters
+
 
 class BsMvTableEditor(MTableInterfaceWidget):
     '''Table editor for plan_args following the ``mv`` plan_stub API.'''
@@ -108,12 +205,16 @@ class BsMvTableEditor(MTableInterfaceWidget):
                                              option_list=self.motors,
                                              table=self,
                                              key='motor'),
-                            'value': MFSpin}
-        super().__init__(*args, table_editor_map=table_editor_map, **kwargs)
+                            'value': partial(bs_motor_position_mfspin_factory,
+                                             table=self)}
+        super().__init__(
+            *args, table_editor_map=table_editor_map,
+            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            **kwargs)
 
 
 class BsScanTableEditor(MTableInterfaceWidget):
-    '''Table Editor for plan_args following the ``scan`` plan API``.'''
+    '''Table Editor for plan_args following the ``scan`` plan API.'''
     def __init__(self, *args, detectors=[], motors=[], **kwargs):
         self.detectors = detectors
         self.motors = motors
@@ -124,12 +225,18 @@ class BsScanTableEditor(MTableInterfaceWidget):
                                              option_list=self.motors,
                                              table=self,
                                              key='motor'),
-                            'start': MFSpin,
-                            'stop': MFSpin}
-        suffix_editor_map = {'num': MISpin}
-        super().__init__(*args, prefix_editor_map=prefix_editor_map,
-                         table_editor_map=table_editor_map,
-                         suffix_editor_map=suffix_editor_map, **kwargs)
+                            'start': partial(bs_motor_position_mfspin_factory,
+                                             table=self),
+                            'stop': partial(bs_motor_position_mfspin_factory,
+                                             table=self)}
+        suffix_editor_map = {'num': partial(table_mispin_factory,
+                                            minimum=0)}
+        super().__init__(
+            *args, prefix_editor_map=prefix_editor_map,
+            table_editor_map=table_editor_map,
+            suffix_editor_map=suffix_editor_map,
+            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            **kwargs)
 
 
 class BsGridTableEditor(MTableInterfaceWidget):
@@ -144,13 +251,19 @@ class BsGridTableEditor(MTableInterfaceWidget):
                                        option_list=self.motors,
                                        table=self,
                                        key='motor'),
-                      'start': MFSpin,
-                      'stop': MFSpin,
-                      'num': MISpin,
-                      'snake': partial(bs_snake_editor_factory,
-                                       table=self)}
-        super().__init__(*args, prefix_editor_map=prefix_editor_map,
-                         table_editor_map=table_editor_map, **kwargs)
+                            'start': partial(bs_motor_position_mfspin_factory,
+                                             table=self),
+                            'stop': partial(bs_motor_position_mfspin_factory,
+                                             table=self),
+                            'num': partial(table_mispin_factory,
+                                           minimum=0),
+                            'snake': partial(bs_snake_editor_factory,
+                                           table=self)}
+        super().__init__(
+            *args, prefix_editor_map=prefix_editor_map,
+            table_editor_map=table_editor_map,
+            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            **kwargs)
 
 
 class MoverRanger(QtWidgets.QWidget):
