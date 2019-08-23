@@ -3,10 +3,13 @@ from bluesky.run_engine import Dispatcher
 from bluesky.callbacks.best_effort import BestEffortCallback
 from event_model import DocumentNames
 from functools import partial
+from PyQt5.QtGui import QValidator
+from PyQt5.QtCore import Qt
 from pyqtgraph.parametertree import ParameterTree
 
-from mily.widgets import (vstacked_label, hstacked_label, MISpin, MFSpin,
-                          MComboBox, MCheckBox, MSelector, MetaDataEntry)
+from mily.widgets import (vstacked_label, hstacked_label, MText, MISpin,
+                          MFSpin, MComboBox, MCheckBox, MSelector,
+                          MetaDataEntry)
 
 from mily.table_interface import MTableInterfaceWidget
 
@@ -16,6 +19,49 @@ def merge_parameters(widget_iter):
             for w in widget_iter
             for k, v in w.get_parameters().items()
             if w.isEnabled()}
+
+
+class UniqueValidator(QValidator):
+    '''A ``QValidator`` that ensures that the string is not in invalid_list.'''
+
+    def __init__(self, invalid_list, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.invalid_list = invalid_list
+
+    # 'validate' function that checks uniqueness
+    def validate(self, inputStr, pos):
+        if inputStr in self.invalid_list:
+            return (self.Invalid, inputStr, pos)
+        else:
+            return (self.Acceptable, inputStr, pos)
+
+    def fixup(self, text):
+        '''Modifes 'text' in-situ in order to attempt to make it unique'''
+        # TODO : fill out this method, an example can be found at
+        # https://stackoverflow.com/questions/34055174/qvalidator-fixup-issue
+
+
+def table_unique_mtest_factory(name, parent, table):
+    '''An 'Editor Factory' for an ``MText`` widget to ensure unique values.
+
+    This is designed to be used in an ``MTableInterfaceWidget`` where it
+    ensures that any entered text does not match any values from the same
+    column. The ``MTableInterfaceWidget`` is passed in via the 'table'
+    argument.
+    '''
+
+    index = table.tableView.selectionModel().selectedIndexes()[0]
+    cur_row = index.row()
+    column = index.column()
+    model = table.tableView.model()
+    invalid_list = [model.item(row, column).data(Qt.DisplayRole)
+                    for row in range(model.rowCount())
+                    if row != cur_row]
+
+    editor = MText(name, parent=parent)
+    editor.setValidator(UniqueValidator(invalid_list, parent))
+
+    return editor
 
 
 def table_mispin_factory(name, parent, minimum=None, maximum=None):
@@ -111,6 +157,7 @@ def bs_snake_editor_factory(name, parent, table):
 
     return editor
 
+
 def bs_motor_position_mfspin_factory(name, parent, table):
     '''Used to open an MFSpin editor with limits based on the 'motor' column
 
@@ -133,7 +180,7 @@ def bs_motor_position_mfspin_factory(name, parent, table):
     # extract the motors limits, or use the EPICS not set value of (0,0)
     limits = getattr(motor, 'limits', (0, 0))
 
-    if limits !=(0,0):
+    if limits != (0, 0):
         return MFSpin(name, parent=parent, minimum=limits[0],
                       maximum=limits[1])
     else:
@@ -180,11 +227,11 @@ def bs_motor_update_coupled_parameters(requested_parameters,
     if 'motor' in requested_parameters.keys():
         motor = requested_parameters['motor']
         limits = getattr(motor, 'limits', (0, 0))
-        if limits !=(0,0):
+        if limits != (0, 0):
             for column_name in [name for name in ['start', 'stop', 'value']
                                 if name in current_parameters.keys()]:
                 if (current_parameters[column_name] < limits[0] or
-                    current_parameters[column_name] > limits[1]):
+                        current_parameters[column_name] > limits[1]):
                     new_parameters[column_name] = None
 
     if 'snake' in new_parameters.keys():  # update snake columns if they exist
@@ -209,7 +256,7 @@ class BsMvTableEditor(MTableInterfaceWidget):
                                              table=self)}
         super().__init__(
             *args, table_editor_map=table_editor_map,
-            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            update_coupled_parameters=bs_motor_update_coupled_parameters,
             **kwargs)
 
 
@@ -228,14 +275,14 @@ class BsScanTableEditor(MTableInterfaceWidget):
                             'start': partial(bs_motor_position_mfspin_factory,
                                              table=self),
                             'stop': partial(bs_motor_position_mfspin_factory,
-                                             table=self)}
+                                            table=self)}
         suffix_editor_map = {'num': partial(table_mispin_factory,
                                             minimum=0)}
         super().__init__(
             *args, prefix_editor_map=prefix_editor_map,
             table_editor_map=table_editor_map,
             suffix_editor_map=suffix_editor_map,
-            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            update_coupled_parameters=bs_motor_update_coupled_parameters,
             **kwargs)
 
 
@@ -248,21 +295,21 @@ class BsGridTableEditor(MTableInterfaceWidget):
                                              option_list=self.detectors,
                                              vertical=False)}
         table_editor_map = {'motor': partial(table_mcombobox_factory,
-                                       option_list=self.motors,
-                                       table=self,
-                                       key='motor'),
+                                             option_list=self.motors,
+                                             table=self,
+                                             key='motor'),
                             'start': partial(bs_motor_position_mfspin_factory,
                                              table=self),
                             'stop': partial(bs_motor_position_mfspin_factory,
-                                             table=self),
+                                            table=self),
                             'num': partial(table_mispin_factory,
                                            minimum=0),
                             'snake': partial(bs_snake_editor_factory,
-                                           table=self)}
+                                             table=self)}
         super().__init__(
             *args, prefix_editor_map=prefix_editor_map,
             table_editor_map=table_editor_map,
-            update_coupled_parameters = bs_motor_update_coupled_parameters,
+            update_coupled_parameters=bs_motor_update_coupled_parameters,
             **kwargs)
 
 
