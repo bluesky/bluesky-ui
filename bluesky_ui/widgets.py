@@ -41,7 +41,7 @@ class UniqueValidator(QValidator):
         # https://stackoverflow.com/questions/34055174/qvalidator-fixup-issue
 
 
-def table_unique_mtest_factory(name, parent, table):
+def table_unique_mtext_factory(name, parent, table):
     '''An 'Editor Factory' for an ``MText`` widget to ensure unique values.
 
     This is designed to be used in an ``MTableInterfaceWidget`` where it
